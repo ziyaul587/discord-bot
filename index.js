@@ -89,7 +89,39 @@ const commands = [
     .addUserOption(o =>
       o.setName("user").setDescription("User").setRequired(true)
     ),
-
+  new SlashCommandBuilder()
+    .setName("announce")
+    .setDescription("👑 GOD MODE announcement")
+    .addChannelOption(o =>
+      o.setName("channel")
+        .setDescription("Where to send announcement")
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("message")
+        .setDescription("Announcement text")
+        .setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("ping")
+        .setDescription("Who to ping")
+        .addChoices(
+          { name: "@everyone", value: "everyone" },
+          { name: "No ping", value: "none" }
+        )
+    )
+    .addRoleOption(o =>
+      o.setName("role")
+        .setDescription("Role to ping (optional)")
+    )
+    .addStringOption(o =>
+      o.setName("image")
+        .setDescription("Image URL (optional)")
+    )
+    .addBooleanOption(o =>
+      o.setName("anonymous")
+        .setDescription("Hide announcer name")
+    ),
   new SlashCommandBuilder()
     .setName("clear")
     .setDescription("Delete messages")
@@ -166,6 +198,57 @@ client.on("interactionCreate", async i => {
 
   // ================= MOD COMMANDS =================
 
+  // ===== 👑 GOD MODE ANNOUNCE =====
+  if (i.commandName === "announce") {
+
+    // 🛡️ Admin only
+    if (!member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return i.reply({ content: "❌ Admin only command", ephemeral: true });
+
+    const channel = i.options.getChannel("channel");
+    const message = i.options.getString("message");
+    const pingType = i.options.getString("ping");
+    const role = i.options.getRole("role");
+    const image = i.options.getString("image");
+    const anonymous = i.options.getBoolean("anonymous");
+
+    let pingText = "";
+    if (pingType === "everyone") pingText = "@everyone";
+    if (role) pingText = `<@&${role.id}>`;
+
+    const footerText = anonymous
+      ? "📢 Anonymous Announcement"
+      : `Announced by ${i.user.tag}`;
+
+    const footerIcon = anonymous
+      ? null
+      : i.user.displayAvatarURL();
+
+    const embed = {
+      color: 0xff0000,
+      title: "📢 SERVER ANNOUNCEMENT",
+      description: message,
+      image: image ? { url: image } : null,
+      footer: footerIcon
+        ? { text: footerText, icon_url: footerIcon }
+        : { text: footerText },
+      timestamp: new Date()
+    };
+
+    await channel.send({
+      content: pingText || null,
+      embeds: [embed]
+    });
+
+    return i.reply({
+      content: "👑 Announcement sent successfully!",
+      ephemeral: true
+    });
+  }
+
+  // ================= MODERATION COMMANDS =================
+
+  // 🛡️ Moderator permission
   if (!member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
     return i.reply({ content: "❌ No permission", ephemeral: true });
 
@@ -173,6 +256,7 @@ client.on("interactionCreate", async i => {
   const target = user ? await i.guild.members.fetch(user.id) : null;
 
   try {
+
     if (i.commandName === "kick") {
       await target.kick();
       return i.reply(`👢 Kicked ${user.tag}`);
@@ -220,18 +304,20 @@ client.on("interactionCreate", async i => {
         ephemeral: true,
       });
     }
+
   } catch (err) {
-    console.error(err);
-    i.reply("⚠️ Failed — check bot permissions & role position");
+  console.error(err);
+  i.reply("⚠️ Failed — check bot permissions & role position");
   }
-});
-// ================= CUSTOM AUTO REPLIES (DISPLAY NAME) =================
+}); // ⭐ CLOSE interactionCreate EVENT
+
+
+// ================= CUSTOM AUTO REPLIES =================
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
 
   const msg = message.content.toLowerCase();
 
-  // ⭐ Server nickname OR global display name
   const name = message.member
     ? message.member.displayName
     : message.author.displayName;
@@ -250,6 +336,7 @@ client.on("messageCreate", async message => {
     message.reply(replies[msg]);
   }
 });
+
 
 // ================= LOGIN =================
 client.login(TOKEN);
