@@ -7,14 +7,18 @@ const {
   SlashCommandBuilder,
 } = require("discord.js");
 
-// 🔑 PUT YOUR DATA HERE
+// 🔑 CONFIG
 const TOKEN = process.env.TOKEN;
-const CLIENT_ID = "1485933888936083516";
+const CLIENT_ID = "1486442818313392178";
 
-// 🧠 Temporary warn storage
+// STORAGE
 const warns = new Map();
+const autoAnnouncements = new Map();
+const autoModSettings = new Map();
+const userWarnings = new Map();
+const userMessages = new Map();
 
-// ================= CLIENT =================
+// CLIENT
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -24,319 +28,280 @@ const client = new Client({
   ],
 });
 
-// ================= SLASH COMMANDS =================
+// ================= COMMANDS =================
 const commands = [
+
+  // 🛡️ AUTOMOD
   new SlashCommandBuilder()
-    .setName("kick")
-    .setDescription("Kick a member")
-    .addUserOption(o =>
-      o.setName("user").setDescription("User to kick").setRequired(true)
-    ),
+    .setName("automod")
+    .setDescription("Ultra automod control")
+    .addStringOption(o =>
+      o.setName("action")
+        .setDescription("Choose action")
+        .setRequired(true)
+        .addChoices(
+          { name: "enable", value: "enable" },
+          { name: "disable", value: "disable" },
+          { name: "set_timeout", value: "set_timeout" },
+          { name: "add_badword", value: "add_badword" },
+          { name: "remove_badword", value: "remove_badword" }
+        ))
+    .addStringOption(o =>
+      o.setName("value").setDescription("Bad word"))
+    .addIntegerOption(o =>
+      o.setName("minutes").setDescription("Timeout minutes")),
+
+  // 👤 INFO
   new SlashCommandBuilder()
     .setName("info")
-    .setDescription("Show info about a user")
+    .setDescription("User info")
     .addUserOption(o =>
-      o.setName("user").setDescription("User").setRequired(false)
-    ),
+      o.setName("user").setDescription("Target user")),
 
+  // 🖼️ AVATAR
   new SlashCommandBuilder()
     .setName("avatar")
-    .setDescription("Show avatar of a user")
+    .setDescription("User avatar")
     .addUserOption(o =>
-      o.setName("user").setDescription("User").setRequired(false)
-    ),
-  new SlashCommandBuilder()
-    .setName("ban")
-    .setDescription("Ban a member")
-    .addUserOption(o =>
-      o.setName("user").setDescription("User to ban").setRequired(true)
-    ),
+      o.setName("user").setDescription("Target user")),
 
-  new SlashCommandBuilder()
-    .setName("unban")
-    .setDescription("Unban by user ID")
-    .addStringOption(o =>
-      o.setName("id").setDescription("User ID").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("timeout")
-    .setDescription("Timeout a member")
-    .addUserOption(o =>
-      o.setName("user").setDescription("User").setRequired(true)
-    )
-    .addIntegerOption(o =>
-      o.setName("minutes").setDescription("Time in minutes").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("remove_timeout")
-    .setDescription("Remove timeout")
-    .addUserOption(o =>
-      o.setName("user").setDescription("User").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("warn")
-    .setDescription("Warn a member")
-    .addUserOption(o =>
-      o.setName("user").setDescription("User").setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("remove_warn")
-    .setDescription("Remove a warn")
-    .addUserOption(o =>
-      o.setName("user").setDescription("User").setRequired(true)
-    ),
+  // 📢 ANNOUNCE
   new SlashCommandBuilder()
     .setName("announce")
-    .setDescription("👑 GOD MODE announcement")
+    .setDescription("Send announcement")
     .addChannelOption(o =>
       o.setName("channel")
-        .setDescription("Where to send announcement")
-        .setRequired(true)
-    )
+        .setDescription("Target channel")
+        .setRequired(true))
     .addStringOption(o =>
       o.setName("message")
         .setDescription("Announcement text")
-        .setRequired(true)
-    )
+        .setRequired(true)),
+
+  // 🔁 AUTO ANNOUNCE START
+  new SlashCommandBuilder()
+    .setName("announce_start")
+    .setDescription("Start auto announce")
+    .addChannelOption(o =>
+      o.setName("channel")
+        .setDescription("Channel")
+        .setRequired(true))
+    .addIntegerOption(o =>
+      o.setName("minutes")
+        .setDescription("Interval minutes")
+        .setRequired(true))
     .addStringOption(o =>
-      o.setName("ping")
-        .setDescription("Who to ping")
-        .addChoices(
-          { name: "@everyone", value: "everyone" },
-          { name: "No ping", value: "none" }
-        )
-    )
-    .addRoleOption(o =>
-      o.setName("role")
-        .setDescription("Role to ping (optional)")
-    )
-    .addStringOption(o =>
-      o.setName("image")
-        .setDescription("Image URL (optional)")
-    )
-    .addBooleanOption(o =>
-      o.setName("anonymous")
-        .setDescription("Hide announcer name")
-    ),
+      o.setName("message")
+        .setDescription("Message")
+        .setRequired(true)),
+
+  // 🛑 STOP
+  new SlashCommandBuilder()
+    .setName("announce_stop")
+    .setDescription("Stop auto announce"),
+
+  // 👢 KICK
+  new SlashCommandBuilder()
+    .setName("kick")
+    .setDescription("Kick user")
+    .addUserOption(o =>
+      o.setName("user")
+        .setDescription("Target")
+        .setRequired(true)),
+
+  // 🔨 BAN
+  new SlashCommandBuilder()
+    .setName("ban")
+    .setDescription("Ban user")
+    .addUserOption(o =>
+      o.setName("user")
+        .setDescription("Target")
+        .setRequired(true)),
+
+  // 🧹 CLEAR
   new SlashCommandBuilder()
     .setName("clear")
     .setDescription("Delete messages")
     .addIntegerOption(o =>
-      o.setName("amount").setDescription("Number of messages").setRequired(true)
-    ),
+      o.setName("amount")
+        .setDescription("Number of messages")
+        .setRequired(true)),
+
 ].map(c => c.toJSON());
 
-// ================= REGISTER COMMANDS =================
+// REGISTER
 const rest = new REST({ version: "10" }).setToken(TOKEN);
-
 (async () => {
-  await rest.put(Routes.applicationCommands(CLIENT_ID), {
-    body: commands,
-  });
-  console.log("⚡ Slash commands registered");
+  await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+  console.log("✅ Commands registered");
 })();
 
-// ================= READY =================
-client.once("clientReady", () => {
+// READY
+client.once("ready", () => {
   console.log(`🌌 BOT ONLINE (${client.user.tag})`);
 });
 
+// ================= INTERACTIONS =================
 client.on("interactionCreate", async i => {
   if (!i.isChatInputCommand()) return;
 
   const member = i.member;
 
-  // ================= PUBLIC COMMANDS =================
+  // 🛡️ AUTOMOD
+  if (i.commandName === "automod") {
+    if (!member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return i.reply({ content: "❌ Admin only", ephemeral: true });
 
-  // ===== INFO =====
+    const action = i.options.getString("action");
+    const value = i.options.getString("value");
+    const minutes = i.options.getInteger("minutes") || 5;
+
+    let settings = autoModSettings.get(i.guild.id) || {
+      enabled: false,
+      timeout: 5,
+      badWords: []
+    };
+
+    if (action === "enable") settings.enabled = true;
+    if (action === "disable") settings.enabled = false;
+    if (action === "set_timeout") settings.timeout = minutes;
+    if (action === "add_badword" && value) settings.badWords.push(value.toLowerCase());
+    if (action === "remove_badword" && value)
+      settings.badWords = settings.badWords.filter(w => w !== value.toLowerCase());
+
+    autoModSettings.set(i.guild.id, settings);
+
+    return i.reply({ content: "🛡️ AutoMod updated", ephemeral: true });
+  }
+
+  // 👤 INFO
   if (i.commandName === "info") {
     const user = i.options.getUser("user") || i.user;
-    const targetMember = await i.guild.members.fetch(user.id);
-
-    const embed = {
-      color: 0x5865f2,
-      title: `👤 User Info — ${targetMember.displayName}`,
-      thumbnail: { url: user.displayAvatarURL({ size: 512 }) },
-      fields: [
-        { name: "Username", value: user.tag, inline: true },
-        { name: "Display Name", value: targetMember.displayName, inline: true },
-        { name: "User ID", value: user.id },
-        {
-          name: "Account Created",
-          value: `<t:${Math.floor(user.createdTimestamp / 1000)}:F>`,
-        },
-        {
-          name: "Joined Server",
-          value: `<t:${Math.floor(targetMember.joinedTimestamp / 1000)}:F>`,
-        },
-        {
-          name: "Type",
-          value: user.bot ? "🤖 Bot" : "👤 Human",
-        },
-      ],
-    };
-
-    return i.reply({ embeds: [embed] }); // ⭐ IMPORTANT
+    return i.reply(`👤 ${user.tag}\nID: ${user.id}`);
   }
 
-  // ===== AVATAR =====
+  // 🖼️ AVATAR
   if (i.commandName === "avatar") {
     const user = i.options.getUser("user") || i.user;
-
-    const embed = {
-      color: 0x5865f2,
-      title: `🖼️ Avatar — ${user.tag}`,
-      image: { url: user.displayAvatarURL({ size: 1024 }) },
-    };
-
-    return i.reply({ embeds: [embed] }); // ⭐ IMPORTANT
+    return i.reply(user.displayAvatarURL({ size: 1024 }));
   }
 
-  // ================= MOD COMMANDS =================
-
-  // ===== 👑 GOD MODE ANNOUNCE =====
+  // 📢 ANNOUNCE
   if (i.commandName === "announce") {
-
-    // 🛡️ Admin only
-    if (!member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return i.reply({ content: "❌ Admin only command", ephemeral: true });
-
-    const channel = i.options.getChannel("channel");
-    const message = i.options.getString("message");
-    const pingType = i.options.getString("ping");
-    const role = i.options.getRole("role");
-    const image = i.options.getString("image");
-    const anonymous = i.options.getBoolean("anonymous");
-
-    let pingText = "";
-    if (pingType === "everyone") pingText = "@everyone";
-    if (role) pingText = `<@&${role.id}>`;
-
-    const footerText = anonymous
-      ? "📢 Anonymous Announcement"
-      : `Announced by ${i.user.tag}`;
-
-    const footerIcon = anonymous
-      ? null
-      : i.user.displayAvatarURL();
-
-    const embed = {
-      color: 0xff0000,
-      title: "📢 SERVER ANNOUNCEMENT",
-      description: message,
-      image: image ? { url: image } : null,
-      footer: footerIcon
-        ? { text: footerText, icon_url: footerIcon }
-        : { text: footerText },
-      timestamp: new Date()
-    };
-
-    await channel.send({
-      content: pingText || null,
-      embeds: [embed]
-    });
-
-    return i.reply({
-      content: "👑 Announcement sent successfully!",
-      ephemeral: true
-    });
+    const ch = i.options.getChannel("channel");
+    const msg = i.options.getString("message");
+    await ch.send(msg);
+    return i.reply({ content: "✅ Sent", ephemeral: true });
   }
 
-  // ================= MODERATION COMMANDS =================
+  // 🔁 AUTO ANNOUNCE
+  if (i.commandName === "announce_start") {
+    const ch = i.options.getChannel("channel");
+    const mins = i.options.getInteger("minutes");
+    const msg = i.options.getString("message");
 
-  // 🛡️ Moderator permission
-  if (!member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
-    return i.reply({ content: "❌ No permission", ephemeral: true });
+    if (autoAnnouncements.has(i.guild.id))
+      clearInterval(autoAnnouncements.get(i.guild.id));
+
+    const timer = setInterval(() => {
+      ch.send(msg);
+    }, mins * 60000);
+
+    autoAnnouncements.set(i.guild.id, timer);
+    return i.reply("🚀 Started");
+  }
+
+  if (i.commandName === "announce_stop") {
+    clearInterval(autoAnnouncements.get(i.guild.id));
+    autoAnnouncements.delete(i.guild.id);
+    return i.reply("🛑 Stopped");
+  }
+
+  // 🛡️ MOD COMMANDS
+  if (!member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) return;
 
   const user = i.options.getUser("user");
   const target = user ? await i.guild.members.fetch(user.id) : null;
 
-  try {
-
-    if (i.commandName === "kick") {
-      await target.kick();
-      return i.reply(`👢 Kicked ${user.tag}`);
-    }
-
-    if (i.commandName === "ban") {
-      await target.ban();
-      return i.reply(`🔨 Banned ${user.tag}`);
-    }
-
-    if (i.commandName === "unban") {
-      await i.guild.members.unban(i.options.getString("id"));
-      return i.reply("✅ User unbanned");
-    }
-
-    if (i.commandName === "timeout") {
-      const mins = i.options.getInteger("minutes");
-      await target.timeout(mins * 60 * 1000);
-      return i.reply(`⏳ Timed out ${user.tag} for ${mins} minutes`);
-    }
-
-    if (i.commandName === "remove_timeout") {
-      await target.timeout(null);
-      return i.reply(`✅ Timeout removed for ${user.tag}`);
-    }
-
-    if (i.commandName === "warn") {
-      const count = warns.get(user.id) || 0;
-      warns.set(user.id, count + 1);
-      return i.reply(`⚠️ ${user.tag} now has ${count + 1} warn(s)`);
-    }
-
-    if (i.commandName === "remove_warn") {
-      const count = warns.get(user.id) || 0;
-      if (count <= 0) return i.reply("No warns to remove");
-      warns.set(user.id, count - 1);
-      return i.reply(`✅ Warn removed. Now ${count - 1}`);
-    }
-
-    if (i.commandName === "clear") {
-      const amount = i.options.getInteger("amount");
-      await i.channel.bulkDelete(amount, true);
-      return i.reply({
-        content: `🧹 Deleted ${amount} messages`,
-        ephemeral: true,
-      });
-    }
-
-  } catch (err) {
-  console.error(err);
-  i.reply("⚠️ Failed — check bot permissions & role position");
+  if (i.commandName === "kick") {
+    await target.kick();
+    return i.reply("👢 Kicked");
   }
-}); // ⭐ CLOSE interactionCreate EVENT
 
+  if (i.commandName === "ban") {
+    await target.ban();
+    return i.reply("🔨 Banned");
+  }
 
-// ================= CUSTOM AUTO REPLIES =================
-client.on("messageCreate", async message => {
-  if (message.author.bot) return;
-
-  const msg = message.content.toLowerCase();
-
-  const name = message.member
-    ? message.member.displayName
-    : message.author.displayName;
-
-  const replies = {
-    "hello": `👋 Hello ${name}!`,
-    "hi": `✨ Hi ${name}!`,
-    "hey": `😎 Hey ${name}!`,
-    "bye": `👋 Goodbye ${name}!`,
-    "good morning": `☀️ Good morning ${name}!`,
-    "good night": `🌙 Good night ${name}!`,
-    "who is your owner": `👑 My owner is this server ExploreByYourself.`,
-  };
-
-  if (replies[msg]) {
-    message.reply(replies[msg]);
+  if (i.commandName === "clear") {
+    const amt = i.options.getInteger("amount");
+    await i.channel.bulkDelete(amt, true);
+    return i.reply({ content: "🧹 Done", ephemeral: true });
   }
 });
 
+// ================= AUTOMOD SYSTEM =================
+client.on("messageCreate", async message => {
+  if (!message.guild || message.author.bot) return;
 
-// ================= LOGIN =================
+  const settings = autoModSettings.get(message.guild.id);
+  if (!settings || !settings.enabled) return;
+
+  const content = message.content.toLowerCase();
+  const userId = message.author.id;
+  const now = Date.now();
+
+  // ===== BAD WORD FILTER =====
+  if (settings.badWords.some(w => content.includes(w))) {
+    await message.delete().catch(() => { });
+    return warnUser(message, settings, "Bad word");
+  }
+
+  // ===== SPAM DETECTION =====
+  if (!userMessages.has(userId)) userMessages.set(userId, []);
+
+  const timestamps = userMessages.get(userId);
+  timestamps.push(now);
+
+  // last 5 sec ke messages rakho
+  const filtered = timestamps.filter(t => now - t < 5000);
+  userMessages.set(userId, filtered);
+
+  // 🚨 SPAM CONDITION
+  if (filtered.length >= 3) {
+    await message.delete().catch(() => { });
+    return warnUser(message, settings, "Spam");
+  }
+});
+
+// WARN SYSTEM
+async function warnUser(message, settings, reason) {
+  const id = message.author.id;
+  const count = (userWarnings.get(id) || 0) + 1;
+  userWarnings.set(id, count);
+
+  message.channel.send(
+    `⚠️ ${message.author} Stop Spamming NEB 😡 (${reason}) [${count}/3]`
+  );
+
+  if (count >= 3) {
+    const member = await message.guild.members.fetch(id);
+    await member.timeout(settings.timeout * 60000);
+
+    message.channel.send(
+      `🚨 ${message.author} Enjoy your vacation 😊 ${settings.timeout} min`
+    );
+
+    userWarnings.delete(id);
+  }
+}
+
+// AUTO REPLY
+client.on("messageCreate", msg => {
+  if (msg.author.bot) return;
+  if (msg.content.toLowerCase() === "hello")
+    msg.reply("👋 Hello!");
+});
+
+// LOGIN
 client.login(TOKEN);
